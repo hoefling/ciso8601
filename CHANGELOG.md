@@ -18,7 +18,8 @@
 ## Version 2.1.0
 
 * Switched to using a C implementation of `timezone` objects.
-    * Much faster parse times for all Python versions (including ~3x faster on Python 2.7)
+    * Much faster parse times for timestamps with timezone information
+        * ~3x faster on Python 2.7, 25% faster on Python 3.7
     * Thanks to [`pendulum`](https://github.com/sdispater/pendulum) and @sdispater for the code.
     * Python 2.7 users no longer need to install `pytz` dependency :smiley:
 
