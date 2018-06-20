@@ -1,5 +1,6 @@
 from ciso8601 import parse_datetime, parse_datetime_as_naive
 import datetime
+import re
 import sys
 
 from generate_test_timestamps import generate_valid_timestamp_and_datetime, generate_invalid_timestamp
@@ -246,12 +247,21 @@ class InvalidTimestampTestCase(unittest.TestCase):
         )
 
     def test_invalid_tz_offsets_too_large(self):
-        # The Python interpreter crashes if you give the datetime constructor a TZ offset with an absolute value >= 1440
-        # TODO: Determine whether these are valid ISO 8601 values and therefore whether ciso8601 should support them.
+        # The TZ offsets with an absolute value >= 1440 are not supported by the tzinfo spec.
+        # See https://docs.python.org/3/library/datetime.html#datetime.tzinfo.utcoffset
+
+        # Error message differs whether or not we are using pytz or datetime.timezone
+        # (and also by which Python version. Python 3.7 has different timedelta.repr())
+        # Of course, since 2.1.0, we no longer use either, but for backwards compatibility
+        # with v2.0.x, we did not change the error messages.
+        if sys.version_info.major >= 3:
+            expected_error_message = re.escape("offset must be a timedelta strictly between -timedelta(hours=24) and timedelta(hours=24), not {0}.".format(repr(datetime.timedelta(minutes=-5940))))
+        else:
+            expected_error_message = r"\('absolute offset is too large', -5940\)"
+
         self.assertRaisesRegex(
             ValueError,
-            # Error message differs whether or not we are using pytz or datetime.timezone
-            r"^offset must be a timedelta strictly between" if sys.version_info.major >= 3 else r"\('absolute offset is too large', -5940\)",
+            expected_error_message,
             parse_datetime,
             '2018-01-01T00:00:00.00-99',
         )

@@ -1,16 +1,10 @@
 #include <Python.h>
 #include <datetime.h>
 
-#define PY_VERSION_AT_LEAST_32 \
-    ((PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 2) || PY_MAJOR_VERSION > 3)
+#include "timezone.h"
+
 #define PY_VERSION_AT_LEAST_36 \
     ((PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 6) || PY_MAJOR_VERSION > 3)
-#define PY_VERSION_AT_LEAST_37 \
-    ((PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7) || PY_MAJOR_VERSION > 3)
-
-#if !PY_VERSION_AT_LEAST_37
-static PyObject *fixed_offset;
-#endif
 
 static PyObject *utc;
 
@@ -317,32 +311,34 @@ _parse(PyObject *self, PyObject *args, int parse_any_tzinfo)
                 tzminute += 60 * tzhour;
                 tzminute *= tzsign;
 
-#if !PY_VERSION_AT_LEAST_32
-                if (fixed_offset == NULL || utc == NULL) {
-                    PyErr_SetString(PyExc_ImportError,
-                                    "Cannot parse a timestamp with time zone "
-                                    "information without the pytz dependency. "
-                                    "Install it with `pip install pytz`.");
-                    return NULL;
-                }
-#endif
-
                 if (tzminute == 0) {
                     tzinfo = utc;
                 }
-                else {
-#if PY_VERSION_AT_LEAST_37
-                    delta = PyDelta_FromDSU(0, 60 * tzminute, 0);
-                    tzinfo = PyTimeZone_FromOffset(delta);
+                else if (abs(tzminute) >= 1440) {
+                    /* Format the error message as if we were still using pytz
+                     * for Python 2 and datetime.timezone for Python 3.
+                     * This is done to maintain complete backwards
+                     * compatibility with ciso8601 2.0.x. Perhaps change to a
+                     * simpler message in ciso8601 v3.0.0.
+                     */
+#if PY_MAJOR_VERSION >= 3
+                    delta = PyDelta_FromDSU(0, tzminute * 60, 0);
+                    PyErr_Format(PyExc_ValueError,
+                                 "offset must be a timedelta"
+                                 " strictly between -timedelta(hours=24) and"
+                                 " timedelta(hours=24),"
+                                 " not %R.",
+                                 delta);
                     Py_DECREF(delta);
-#elif PY_VERSION_AT_LEAST_32
-                    tzinfo = PyObject_CallFunction(
-                        fixed_offset, "N",
-                        PyDelta_FromDSU(0, 60 * tzminute, 0));
 #else
-                    tzinfo =
-                        PyObject_CallFunction(fixed_offset, "i", tzminute);
+                    PyErr_Format(PyExc_ValueError,
+                                 "('absolute offset is too large', %d)",
+                                 tzminute);
 #endif
+                    return NULL;
+                }
+                else {
+                    tzinfo = new_fixed_offset(60 * tzminute);
                     if (tzinfo == NULL) /* ie. PyErr_Occurred() */
                         return NULL;
                 }
@@ -414,40 +410,22 @@ PyInit_ciso8601(void)
 initciso8601(void)
 #endif
 {
-#if !PY_VERSION_AT_LEAST_32
-    PyObject *pytz;
-#elif !PY_VERSION_AT_LEAST_37
-    PyObject *datetime;
-#endif
-
 #if PY_MAJOR_VERSION >= 3
     PyObject *module = PyModule_Create(&moduledef);
 #else
     (void)Py_InitModule("ciso8601", CISO8601Methods);
 #endif
     PyDateTime_IMPORT;
-#if PY_VERSION_AT_LEAST_37
-    utc = PyDateTime_TimeZone_UTC;
-#elif PY_VERSION_AT_LEAST_32
-    datetime = PyImport_ImportModule("datetime");
-    if (datetime == NULL)
-        return NULL;
-    fixed_offset = PyObject_GetAttrString(datetime, "timezone");
-    if (fixed_offset == NULL)
-        return NULL;
-    utc = PyObject_GetAttrString(fixed_offset, "utc");
-    if (utc == NULL)
+
+#if PY_MAJOR_VERSION >= 3
+    if (initialize_timezone_code() < 0)
         return NULL;
 #else
-    pytz = PyImport_ImportModule("pytz");
-    if (pytz == NULL) {
-        PyErr_Clear();
-    }
-    else {
-        fixed_offset = PyObject_GetAttrString(pytz, "FixedOffset");
-        utc = PyObject_GetAttrString(pytz, "UTC");
-    }
+    initialize_timezone_code();
 #endif
+
+    utc = new_fixed_offset(0);
+
 #if PY_MAJOR_VERSION >= 3
     return module;
 #endif

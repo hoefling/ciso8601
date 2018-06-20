@@ -29,12 +29,12 @@ os.environ['_CL_'] += " /WX"
 
 setup(
     name="ciso8601",
-    version="2.0.1",
+    version="2.1.0",
     description='Fast ISO8601 date time parser for Python written in C',
     long_description=long_description,
     url="https://github.com/closeio/ciso8601",
     license="MIT",
-    ext_modules=[Extension("ciso8601", ["module.c"])],
+    ext_modules=[Extension("ciso8601", ["module.c", "timezone.c"])],
     test_suite='tests',
     tests_require=[
         'pytz',
