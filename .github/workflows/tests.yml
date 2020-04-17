@@ -1,0 +1,47 @@
+name: Github Actions
+
+on: [push]
+
+jobs:
+#  win_amd64+macosx:
+#    runs-on: ${{ matrix.os }}
+#    strategy:
+#      matrix:
+#        os: [macos-latest, windows-latest]
+#        python-version: [2.7, 3.5, 3.6, 3.7, 3.8]
+#        exclude:
+#          # Exclude Python 2.7 on Windows for now as missing VC9 build tools.
+#          - os: windows-latest
+#            python-version: "2.7"
+#    steps:
+#      - uses: actions/checkout@v2
+#      - name: Set up Python ${{ matrix.python-version }}
+#        uses: actions/setup-python@v1
+#        with:
+#          python-version: ${{ matrix.python-version }}
+#      - name: Install dependencies
+#        run: |
+#          pip install tox setuptools wheel --upgrade
+#      - name: Calculate tox env name
+#        shell: bash
+#        run: |
+#          echo ::set-env name=TOXENV::$(python -c "from __future__ import print_function; import sys; v=sys.version_info; print('py', v.major, v.minor, sep='')")
+#      - name: Run tests
+#        run: |
+#          tox
+#      - name: Build wheel
+#        run: |
+#          python setup.py bdist_wheel
+#          # python -c "from wheel import pep425tags; print(*pep425tags.get_supported('.')[0], sep='-')"
+  manylinux1_x86_64:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: [2.7, 3.5, 3.6, 3.7, 3.8]
+        container: quay.io/pypa/manylinux1_x86_64:latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Test python version
+        run: |
+          ls -l /opt/
